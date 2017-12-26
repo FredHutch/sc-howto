@@ -1,0 +1,3 @@
+0 5,17 * * * root [ -s /etc/krb5.keytab ] && /usr/bin/kinit -k
+
+
