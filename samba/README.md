@@ -29,7 +29,7 @@ you will not need them.
 
 ## Installation
 
-This installation is currently only tested on Ubuntu 16.04. If you have not yet
+This installation is currently only tested on **Ubuntu 16.04**. If you have not yet
 installed the prerequisites please review the config files under ![/etc](./etc/)  
 
 Login to a the system you wan to install Samba on, switch to the root user,
@@ -38,7 +38,9 @@ install Samba and copy the config from this repository:
     sudo su -
     apt update; apt install -y wget samba libsasl2-modules-gssapi-mit msktutil
     mv /etc/samba/smb.conf /etc/samba/smb.conf.orig
-    wget https://raw.githubusercontent.com/FredHutch/sc-howto/master/samba/etc/samba/smb.conf -O /etc/samba/smb.conf    
+    wget https://raw.githubusercontent.com/FredHutch/sc-howto/master/samba/etc/samba/smb.conf -O /etc/samba/smb.conf
+    wget https://raw.githubusercontent.com/FredHutch/sc-howto/master/samba/etc/cron.d/krb5_host_ticket_renew -O /etc/cron.d/krb5_host_ticket_renew
+
 
 ## Configuration
 
@@ -67,10 +69,10 @@ a kerberos ticket.
     12/26/17 12:31:33  12/26/17 22:31:25  krbtgt/YOURREALM.COM@YOURREALM.COM
     	renew until 01/02/18 12:31:25
 
-join the computer to the domain and restart the samba services. Please note the
+Join the computer to the domain and restart the samba services. Please note the
 option --base. This is the AD organizational unit (OU) the computer account will be
 created in. By default this is cn=Computers but if you have a computer OU in your
-Department it would be --base "ou=Computers,ou=Department" 
+department you would use --base "ou=Computers,ou=Department"
 
     msktutil --create --service host/$(hostname -s | tr '/a-z/' '/A-Z/') --service host/$(hostname -f) --set-samba-secret --enctypes 0x4 --dont-expire-password --description "Samba Server by msktutil" --base "cn=Computers"
 
