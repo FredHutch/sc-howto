@@ -1,17 +1,16 @@
-# A Samba File Server for your Posix FS integrated in Active Directory
+# A Samba Gateway for a Posix FS joined to Active Directory
 
 ## Introduction
 
 ### What we want
-We would like seamless access to our Posix file systems for our
-Windows and Mac desktop users. The desktop computers are joined to an AD domain
-and should not require to enter a username / password to access the Posix file
-systems via CFS.
+We would like seamless access to our Posix file systems for our Windows and Mac
+desktop users. The desktop computers are joined to an AD domain and should not
+require to enter a username / password to access the Posix file systems via CFS.
 
 ### What we have (Prerequisites)
 
-1. We already have a method of accessing our Posix file systems
-(via NFS, Gluster, BeeGFS etc ) from Unix systems
+1. We already have a method of accessing our Posix file systems (via NFS, Gluster,
+BeeGFS etc ) from Unix systems
 * We have implemented a method for identity mapping (LDAP, NIS or local files)
 with consistent values for uid, uidNumber and gidNumber between Active Directory
 and our preferred identify mapping (IDMAP) approach, according to RFC2307
@@ -68,12 +67,12 @@ a kerberos ticket.
     12/26/17 12:31:33  12/26/17 22:31:25  krbtgt/YOURREALM.COM@YOURREALM.COM
     	renew until 01/02/18 12:31:25
 
-join the computer to the domain and restart the samba services
+join the computer to the domain and restart the samba services. Please note the
+option --base. This is the AD organizational unit (OU) the computer account will be
+created in. By default this is cn=Computers but if you have a computer OU in your
+Department it would be --base "ou=Computers,ou=Department" 
 
-    computername=$(hostname -s)
-    hostfqdn=$(hostname -f)
-
-    msktutil --dont-expire-password --no-pac --computer-name $computername --enctypes 0x07 -k /etc/krb5.keytab -h $hostfqdn -s host/$hostfqdn -s HOST/$computername --upn host/$hostfqdn --description "Kerberos Account for SAMBA by msktutil" --set-samba-secret -b 'ou=Servers,ou=Computers,ou=SciComp' --server dc
+    msktutil --create --service host/$(hostname -s | tr '/a-z/' '/A-Z/') --service host/$(hostname -f) --set-samba-secret --enctypes 0x4 --dont-expire-password --description "Samba Server by msktutil" --base "cn=Computers"
 
     systemctl restart smbd nmbd
 
@@ -88,18 +87,62 @@ and you want to see something like this, otherwise continue with troubleshooting
     [2017/12/26 15:25:29.976865,  2] ../source3/smbd/server.c:1009(smbd_parent_loop)
     waiting for connections
 
-
 ## Troubleshooting
 
-In some cases you cannot join the domain, there are several options
+In some cases you cannot join the domain, there are several options. As a first
+step make sure that you read the **prerequisites** at the beginning of this document.
+Then check your local Kerberos keytab using the klist command, it should look
+like this:
 
-Pre-create the computer account in a Windows Tool called **Active Directory Users
-and Computers** . After that try joining
+    root@samba4:~# klist -kte
+    Keytab name: FILE:/etc/krb5.keytab
+    KVNO Timestamp         Principal
+    ---- ----------------- --------------------------------------------------------
+    2 12/27/17 13:15:08 samba4$@MYDOM.ORG (arcfour-hmac)
+    2 12/27/17 13:15:08 SAMBA4$@MYDOM.ORG (arcfour-hmac)
+    2 12/27/17 13:15:08 host/samba4@MYDOM.ORG (arcfour-hmac)
+    2 12/27/17 13:15:08 host/samba4.MYDOM.org@MYDOM.ORG (arcfour-hmac)
+    2 12/27/17 13:15:08 host/SAMBA4@MYDOM.ORG (arcfour-hmac)
 
-![Active Directory Users and Computers](assets/markdown-img-paste-20171226134251669.png)
+As a first troubleshooting step always delete the local kerberos keytab before
+continuing (`rm /etc/krb5.keytab`)
 
+### msktutil
 
-If joining the domain using msktutil doe snot work please try the legacy method
+msktutil is the most reliable option for joining computers to an AD domain.
+Problems can arise if the join is not successful right away. Some things to try:
+
+1. If the domain controller cannot be found use the `--server mydc.mydom.org`
+option to set the domain controller
+* If the keytab is not created in the right location use `--keytab /etc/krb5.keytab`
+* If you are using older versions of windows domain controllers you might have to
+fall back to weak DES encryption options. Use `--enctypes 0x07` to set this.
+* If users are members of many security groups this can lead to problems. In that
+case try `--no-pac`
+* Some applications require the computer name to be set. Use `--computer-name
+$(hostname -s | tr '/a-z/' '/A-Z/')`
+* if you are running msktutil subsequent times remove the --description option as
+it does seem to fail in some versions of msktutil
+
+### net ads
+
+net ads is the standard tool that comes with Samba
 
     net ads join -k
     net ads keytab add -k
+
+### samba-tool
+
+samba-tool is a newer tool that work sometimes if net ads fails
+
+    samba-tool domain join MYDOM -U username
+    samba-tool domain exportkeytab /etc/krb5.keytab -U username
+
+### other tools
+
+Other tools might require you to pre-create  the computer account in a Windows
+tool called **Active Directory Users and Computers**.
+
+![Active Directory Users and Computers](assets/markdown-img-paste-20171226134251669.png)
+
+After creating the computer account, try joining again.
