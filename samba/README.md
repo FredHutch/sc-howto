@@ -108,7 +108,7 @@ monitor the log output. If you cannot connect continue with troubleshooting.
 
 ## Troubleshooting
 
-## timing
+### timing
 
 If you joined the domain successfully but clients cannot connect to the Samba
 server you just might have to wait a few minutes until AD replication has caught
@@ -122,7 +122,7 @@ up. These error messages can indicate timing issues:
     [2017/12/27 17:12:30.094912,  2] ../auth/gensec/spnego.c:716(gensec_spnego_server_negTokenTarg)
      SPNEGO login failed: NT_STATUS_NO_LOGON_SERVERS
 
-## initial steps
+### initial steps
 
 In some cases you cannot join the domain, there are several options. As a first
 step make sure that you read the **prerequisites** at the beginning of this document.
@@ -141,6 +141,13 @@ like this:
 
 The next troubleshooting step should be changing `log level = 2` to `log level = 4`
 in `/etc/samba/smb.conf` and restarting samba (`systemctl restart smbd nmbd`)
+
+### upgrading Samba
+
+if you feel adventurous you can upgrade to the latest samba release
+
+    add-apt-repository ppa:linux-schools/samba-latest
+    apt install -y samba
 
 ### msktutil
 
