@@ -9,7 +9,7 @@ fi
 echo "host ${hostfqdn} joining domain in OU ${OU} ..."
 
 msktutil --create \
-     --service host/$(hostname -s | tr '/a-z/' '/A-Z/') \
+     --service host/$(hostname -s) \
      --service host/$(hostname -f) \
      --set-samba-secret \
      --enctypes 0x4 \
