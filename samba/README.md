@@ -5,7 +5,7 @@
 ### What we want
 We would like seamless access to our Posix file systems for our Windows and Mac
 desktop users. The desktop computers are joined to an AD domain and should not
-require to enter a username / password to access the Posix file systems via CFS.
+require to enter a username / password to access the Posix file systems via SMB.
 
 ### What we have (Prerequisites)
 
@@ -161,12 +161,10 @@ $(hostname -s | tr '/a-z/' '/A-Z/')`
 * if you are running msktutil subsequent times remove the --description option as
 it does seem to fail in some versions of msktutil
 
-if this error message shows up `hostname -f` is like not returning the fully
+if this error message shows up `hostname -f` is likely not returning the fully
 qualified domain name. Please fix /etc/hosts
 
-    Error: Another computer account (CN=samba5,OU=Computers,OU=SciComp,DC=fhcrc,DC=org) has the principal host/samba5
-    Error: ldap_add_principal failed
-    Error: Another computer account (CN=samba5,OU=Computers,OU=SciComp,DC=fhcrc,DC=org) has the principal host/samba5
+    Error: Another computer account (CN=samba5,OU=Computers,OU=Dept,DC=mydom,DC=org) has the principal host/samba5
     Error: ldap_add_principal failed
 
 ### net ads
@@ -178,7 +176,7 @@ net ads is the standard tool that comes with Samba
 
 ### samba-tool
 
-samba-tool is a newer tool that work sometimes if net ads fails
+samba-tool is a newer tool that work sometimes if `net ads` fails
 
     samba-tool domain join MYDOM -U username
     samba-tool domain exportkeytab /etc/krb5.keytab -U username
