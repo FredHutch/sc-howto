@@ -25,18 +25,25 @@ timing out.
 If point 2 or 3 are not true for you today please look at implementing a simple
 IDMAP service such as ad2openldap: https://pypi.python.org/pypi/ad2openldap .
 There are more complex solutions available such as Centrify, SSSD or winbind but
-you will not need them.
+you will not need them. Also you will not need any PAM configurations if users
+are not logging into this Samba server (e.g. via SSH)
 
 ## Installation
 
 This installation is currently only tested on **Ubuntu 16.04**. If you have not yet
-installed the prerequisites please review the config files under ![/etc](./etc/)  
+installed the **prerequisites** please review the config files under ![/etc](./etc/)  
 
 Login to a the system you wan to install Samba on, switch to the root user,
-install Samba and copy the config from this repository:
+install samba and some other packages
 
     sudo su -
-    apt update; apt install -y wget samba libsasl2-modules-gssapi-mit msktutil
+
+    export DEBIAN_FRONTEND=noninteractive
+    apt update
+    apt install -y wget samba krb5-user libsasl2-modules-gssapi-mit msktutil ldap-utils libnss-ldap
+
+and copy a few configurations (you can paste all 3 lines at once):
+
     mv /etc/samba/smb.conf /etc/samba/smb.conf.orig
     wget https://raw.githubusercontent.com/FredHutch/sc-howto/master/samba/etc/samba/smb.conf -O /etc/samba/smb.conf
     wget https://raw.githubusercontent.com/FredHutch/sc-howto/master/samba/etc/cron.d/krb5_host_ticket_renew -O /etc/cron.d/krb5_host_ticket_renew
@@ -44,11 +51,14 @@ install Samba and copy the config from this repository:
 
 ## Configuration
 
-Replace the REALM string MYDOM.ORG and domain MYDOM in smb.conf with your own
-settings
+Again, please review the **prerequisites** . The configuration will not work if
+you have not prepared this (including the basic stuff)
 
-    sed -i 's/MYDOM.ORG/YOURREALM.COM/' /etc/samba/smb.conf
-    sed -i 's/MYDOM/YOURDOM/' /etc/samba/smb.conf
+Replace the REALM string MYDOM.ORG and domain MYDOM in smb.conf with your own
+settings, e.g. YOURDOMAIN
+
+    sed -i 's/MYDOM.ORG/YOURDOMAIN.COM/' /etc/samba/smb.conf
+    sed -i 's/MYDOM/YOURDOMAIN/' /etc/samba/smb.conf
 
 replace the default /scratch folder with something simple that already exists
 such as /tmp
@@ -69,27 +79,50 @@ a kerberos ticket.
     12/26/17 12:31:33  12/26/17 22:31:25  krbtgt/YOURREALM.COM@YOURREALM.COM
     	renew until 01/02/18 12:31:25
 
-Join the computer to the domain and restart the samba services. Please note the
-option --base. This is the AD organizational unit (OU) the computer account will be
-created in. By default this is cn=Computers but if you have a computer OU in your
-department you would use --base "ou=Computers,ou=Department"
+Join the computer to the domain. Please note the option --base. This is the AD
+organizational unit (OU) the computer account will be created in. By default
+this is cn=Computers but if you have a computer OU in your department you would
+use --base "ou=Computers,ou=Department"
 
-    msktutil --create --service host/$(hostname -s | tr '/a-z/' '/A-Z/') --service host/$(hostname -f) --set-samba-secret --enctypes 0x4 --dont-expire-password --description "Samba Server by msktutil" --base "cn=Computers"
+    msktutil --create --service host/$(hostname -s) --service host/$(hostname -f) --set-samba-secret --enctypes 0x4 --dont-expire-password --description "Samba Server by msktutil" --base "cn=Computers"
+
+msktutil should generate this output:
+
+    No computer account for yourhostname found, creating a new one.
+    Modified trust account password in secrets database
+
+restart Samba and check log output to verify that samba is up and running:
 
     systemctl restart smbd nmbd
+    tail /var/log/samba/log.smbd
 
-check log output to verify that samba is up and running
-
-     tail /var/log/samba/log.smbd
-
-and you want to see something like this, otherwise continue with troubleshooting
+you should see something like this, otherwise continue with troubleshooting
 
     [2017/12/26 15:25:29.976673,  0] ../lib/util/become_daemon.c:124(daemon_ready)
     STATUS=daemon 'smbd' finished starting up and ready to serve connections
     [2017/12/26 15:25:29.976865,  2] ../source3/smbd/server.c:1009(smbd_parent_loop)
     waiting for connections
 
+now wait a few minutes and then connect a client to the samba share, continue to
+monitor the log output. If you cannot connect continue with troubleshooting.
+
 ## Troubleshooting
+
+## timing
+
+If you joined the domain successfully but clients cannot connect to the Samba
+server you just might have to wait a few minutes until AD replication has caught
+up. These error messages can indicate timing issues:
+
+    connect_to_domain_password_server: unable to open the domain client session to machine RODC1.MYDOM.ORG. Error was : NT_STATUS_NO_TRUST_SAM_ACCOUNT.
+    [2017/12/27 17:12:30.094783,  0] ../source3/auth/auth_domain.c:184(domain_client_validate)
+     domain_client_validate: Domain password server not available.
+    [2017/12/27 17:12:30.094842,  2] ../source3/auth/auth.c:315(auth_check_ntlm_password)
+     check_ntlm_password:  Authentication for user [username] -> [username] FAILED with error NT_STATUS_NO_LOGON_SERVERS
+    [2017/12/27 17:12:30.094912,  2] ../auth/gensec/spnego.c:716(gensec_spnego_server_negTokenTarg)
+     SPNEGO login failed: NT_STATUS_NO_LOGON_SERVERS
+
+## initial steps
 
 In some cases you cannot join the domain, there are several options. As a first
 step make sure that you read the **prerequisites** at the beginning of this document.
@@ -106,13 +139,15 @@ like this:
     2 12/27/17 13:15:08 host/samba4.MYDOM.org@MYDOM.ORG (arcfour-hmac)
     2 12/27/17 13:15:08 host/SAMBA4@MYDOM.ORG (arcfour-hmac)
 
-As a first troubleshooting step always delete the local kerberos keytab before
-continuing (`rm /etc/krb5.keytab`)
+The next troubleshooting step should be changing `log level = 2` to `log level = 4`
+in `/etc/samba/smb.conf` and restarting samba (`systemctl restart smbd nmbd`)
 
 ### msktutil
 
 msktutil is the most reliable option for joining computers to an AD domain.
-Problems can arise if the join is not successful right away. Some things to try:
+Problems can arise if the join is not successful right away. When you try one
+of these options please make sure that you always delete the local kerberos keytab
+before re-running msktutil (`rm /etc/krb5.keytab`)
 
 1. If the domain controller cannot be found use the `--server mydc.mydom.org`
 option to set the domain controller
@@ -125,6 +160,14 @@ case try `--no-pac`
 $(hostname -s | tr '/a-z/' '/A-Z/')`
 * if you are running msktutil subsequent times remove the --description option as
 it does seem to fail in some versions of msktutil
+
+if this error message shows up `hostname -f` is like not returning the fully
+qualified domain name. Please fix /etc/hosts
+
+    Error: Another computer account (CN=samba5,OU=Computers,OU=SciComp,DC=fhcrc,DC=org) has the principal host/samba5
+    Error: ldap_add_principal failed
+    Error: Another computer account (CN=samba5,OU=Computers,OU=SciComp,DC=fhcrc,DC=org) has the principal host/samba5
+    Error: ldap_add_principal failed
 
 ### net ads
 
