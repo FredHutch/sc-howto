@@ -32,7 +32,7 @@ are not logging into this Samba server (e.g. via SSH)
 ## Installation
 
 This installation is currently only tested on **Ubuntu 16.04**. If you have not yet
-installed the **prerequisites** please review the config files under ![/etc](./etc/)  
+installed the **prerequisites** please review the config files under ![/etc](./etc/)
 in this repository.
 
 Login to the system you want to install Samba on, switch to the root user,
