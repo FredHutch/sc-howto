@@ -109,6 +109,10 @@ you should see something like this, otherwise continue with troubleshooting
 now wait a few minutes and then connect a client to the samba share, continue to
 monitor the log output. If you cannot connect continue with troubleshooting.
 
+If all goes well you should be able to (almost) saturate a 1G link using SMB3:
+
+![Copying data from Windows 10](assets/markdown-img-paste-20171229065313970.png)
+
 ## Troubleshooting
 
 ### timing
