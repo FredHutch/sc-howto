@@ -31,9 +31,9 @@ are not logging into this Samba server (e.g. via SSH)
 
 ## Installation
 
-This installation is currently only tested on **Ubuntu 16.04**. If you have not yet
-installed the **prerequisites** please review the config files under ![/etc](./etc/)
-in this repository.
+This installation is currently only tested on **Ubuntu 16.04 & 18.04 **. If you 
+have not yet installed the **prerequisites** please review the config files under 
+![/etc](./etc/) in this repository.
 
 Login to the system you want to install Samba on, switch to the root user,
 install Samba and some other required packages. ldap-utils and libnss-ldap are
@@ -82,17 +82,14 @@ a kerberos ticket.
     12/26/17 12:31:33  12/26/17 22:31:25  krbtgt/YOURREALM.COM@YOURREALM.COM
     	renew until 01/02/18 12:31:25
 
-Join the computer to the domain. Please note the option --base. This is the AD
-organizational unit (OU) the computer account will be created in. By default
-this is cn=Computers but if you have a computer OU in your department you would
-use --base "ou=Computers,ou=Department"
 
-    msktutil --create --service host/$(hostname -s) --service host/$(hostname -f) --set-samba-secret --enctypes 0x4 --dont-expire-password --description "Samba Server by msktutil" --base "cn=Computers"
+Join the computer to the domain. 'net ads' is the standard tool that comes with Samba. 
+Use the -k option to create the computer account via kerberos authentication and the 
+createcomputer option to create it in an AD OU to which you have write access to.
 
-msktutil should generate this output:
+    net ads join createcomputer="SciComp/Computers/Servers" osName="$(lsb_release -cs)" osVer="$(lsb_release -rs)" osServicePack="$(lsb_release -ds)" -k --no-dns-updates
+    net ads keytab add -k
 
-    No computer account for yourhostname found, creating a new one.
-    Modified trust account password in secrets database
 
 restart Samba and check log output to verify that samba is up and running:
 
@@ -188,14 +185,21 @@ qualified domain name. Please fix /etc/hosts
 if msktutil does not work in your environment fall back to traditional tools
 that can also create keytabs:
 
-#### net ads
 
-net ads is the standard tool that comes with Samba. Use the -k option to create
-the computer account via kerberos authentication and the createcomputer option
-to create it in a OU to which you have write access to.
+#### msktutil 
 
-    net ads join createcomputer='Department/Computers' -k
-    net ads keytab add -k
+Please note the option --base. This is the AD organizational unit (OU) the computer account 
+will be created in. By default this is cn=Computers but if you have a computer OU in your 
+department you would use --base "ou=Computers,ou=Department"
+
+    msktutil --create --service host/$(hostname -s) --service host/$(hostname -f) --set-samba-secret --enctypes 0x4 --dont-expire-password --description "Samba Server by msktutil" --base "cn=Computers"
+
+msktutil should generate this output:
+
+    No computer account for yourhostname found, creating a new one.
+    Modified trust account password in secrets database
+
+Mote: msktutil 1.1 does currenty not work with Ubuntu 18.04 (Sept 2019)
 
 #### samba-tool
 
