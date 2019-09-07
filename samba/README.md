@@ -31,7 +31,7 @@ are not logging into this Samba server (e.g. via SSH)
 
 ## Installation
 
-This installation is currently only tested on **Ubuntu 16.04 & 18.04 **. If you 
+This installation is currently only tested on **Ubuntu 16.04 & 18.04**. If you 
 have not yet installed the **prerequisites** please review the config files under 
 ![/etc](./etc/) in this repository.
 
@@ -85,10 +85,9 @@ a kerberos ticket.
 
 Join the computer to the domain. 'net ads' is the standard tool that comes with Samba. 
 Use the -k option to create the computer account via kerberos authentication and the 
-createcomputer option to create it in an AD OU to which you have write access to.
+createcomputer option to create it in an AD OU to which you have write access.
 
     net ads join createcomputer="SciComp/Computers/Servers" osName="$(lsb_release -cs)" osVer="$(lsb_release -rs)" osServicePack="$(lsb_release -ds)" -k --no-dns-updates
-    net ads keytab add -k
 
 
 restart Samba and check log output to verify that samba is up and running:
@@ -146,6 +145,14 @@ like this:
 The next troubleshooting step should be changing `log level = 2` to `log level = 4`
 in `/etc/samba/smb.conf` and restarting samba (`systemctl restart smbd nmbd`)
 
+
+### net ads keytab 
+
+use the net ads keytab command to list, create & remove the kerberos keytab 
+
+    net ads keytab add -k
+
+
 ### upgrading Samba
 
 if you feel adventurous you can upgrade to the latest samba release
@@ -154,9 +161,30 @@ if you feel adventurous you can upgrade to the latest samba release
     apt upgrade
     apt install -y samba
 
-### msktutil
+Note: The linux schools samba version does currently not work with clustered samba (ctdb)
 
-msktutil is the most reliable option for joining computers to an AD domain.
+
+### alternative methods
+
+if 'net ads join' does not work in your environment you can try other tools
+that can also create keytabs:
+
+#### msktutil 
+
+Please note the option --base. This is the AD organizational unit (OU) the computer account 
+will be created in. By default this is cn=Computers but if you have a computer OU in your 
+department you would use --base "ou=Computers,ou=Department"
+
+    msktutil --create --service host/$(hostname -s) --service host/$(hostname -f) --set-samba-secret --enctypes 0x4 --dont-expire-password --description "Samba Server by msktutil" --base "cn=Computers"
+
+msktutil should generate this output:
+
+    No computer account for yourhostname found, creating a new one.
+    Modified trust account password in secrets database
+
+Mote: msktutil 1.1 does currenty not work with Ubuntu 18.04 (Sept 2019)
+
+msktutil is one of the most reliable option for joining computers to an AD domain.
 Problems can arise if the join is not successful right away. When you try one
 of these options please make sure that you always delete the local kerberos keytab
 before re-running msktutil (`rm /etc/krb5.keytab`)
@@ -179,27 +207,6 @@ qualified domain name. Please fix /etc/hosts
 
     Error: Another computer account (CN=samba5,OU=Computers,OU=Dept,DC=mydom,DC=org) has the principal host/samba5
     Error: ldap_add_principal failed
-
-### alternative methods
-
-if msktutil does not work in your environment fall back to traditional tools
-that can also create keytabs:
-
-
-#### msktutil 
-
-Please note the option --base. This is the AD organizational unit (OU) the computer account 
-will be created in. By default this is cn=Computers but if you have a computer OU in your 
-department you would use --base "ou=Computers,ou=Department"
-
-    msktutil --create --service host/$(hostname -s) --service host/$(hostname -f) --set-samba-secret --enctypes 0x4 --dont-expire-password --description "Samba Server by msktutil" --base "cn=Computers"
-
-msktutil should generate this output:
-
-    No computer account for yourhostname found, creating a new one.
-    Modified trust account password in secrets database
-
-Mote: msktutil 1.1 does currenty not work with Ubuntu 18.04 (Sept 2019)
 
 #### samba-tool
 
