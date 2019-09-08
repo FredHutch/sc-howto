@@ -225,3 +225,26 @@ tool called **Active Directory Users and Computers**.
 ![Active Directory Users and Computers](assets/markdown-img-paste-20171226134251669.png)
 
 After creating the computer account, try joining again.
+
+
+#### can join but not access Samba shares 
+
+many problems can be resolved by resetting the samba and kerberos configuration:
+
+    net ads leave -k
+    rm /etc/krb5.keytab 
+    systemctl stop smbd nmbd
+    kdestroy
+    rm -rf /var/lib/samba
+    mkdir -p /var/lib/samba/private
+    
+
+then recover:
+
+    systemctl restart smbd nmbd
+    kinit <username>
+    net ads join createcomputer="SciComp/Computers" osName="$(lsb_release -cs)" osVer="$(lsb_release -rs)" osServicePack="$(lsb_release -ds)" -k --no-dns-updates
+    systemctl restart smbd nmbd
+    tail /var/log/samba/log.smbd
+
+
