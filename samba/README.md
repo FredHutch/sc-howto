@@ -92,7 +92,7 @@ createcomputer option to create it in an AD OU to which you have write access.
 
 restart Samba and check log output to verify that samba is up and running:
 
-    systemctl restart smbd nmbd
+    systemctl restart smbd
     tail /var/log/samba/log.smbd
 
 you should see something like this, otherwise continue with troubleshooting
@@ -129,7 +129,11 @@ up. These error messages can indicate these timing issues:
 
 In some cases you cannot join the domain, there are several options. As a first
 step make sure that you read the **prerequisites** at the beginning of this document.
-Then check your local Kerberos keytab using the klist command, it should look
+Then you should see if you can join the domain after you pre-created a computer account 
+in Active Directory Users and Computers (ADUC).
+
+
+IF that does not work check your local Kerberos keytab using the klist command, it should look
 like this:
 
     root@samba4:~# klist -kte
