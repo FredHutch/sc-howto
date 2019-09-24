@@ -31,9 +31,9 @@ are not logging into this Samba server (e.g. via SSH)
 
 ## Installation
 
-This installation is currently only tested on **Ubuntu 16.04**. If you have not yet
-installed the **prerequisites** please review the config files under ![/etc](./etc/)
-in this repository.
+This installation is currently only tested on **Ubuntu 16.04 & 18.04**. If you 
+have not yet installed the **prerequisites** please review the config files under 
+![/etc](./etc/) in this repository.
 
 Login to the system you want to install Samba on, switch to the root user,
 install Samba and some other required packages. ldap-utils and libnss-ldap are
@@ -82,21 +82,17 @@ a kerberos ticket.
     12/26/17 12:31:33  12/26/17 22:31:25  krbtgt/YOURREALM.COM@YOURREALM.COM
     	renew until 01/02/18 12:31:25
 
-Join the computer to the domain. Please note the option --base. This is the AD
-organizational unit (OU) the computer account will be created in. By default
-this is cn=Computers but if you have a computer OU in your department you would
-use --base "ou=Computers,ou=Department"
 
-    msktutil --create --service host/$(hostname -s) --service host/$(hostname -f) --set-samba-secret --enctypes 0x4 --dont-expire-password --description "Samba Server by msktutil" --base "cn=Computers"
+Join the computer to the domain. 'net ads' is the standard tool that comes with Samba. 
+Use the -k option to create the computer account via kerberos authentication and the 
+createcomputer option to create it in an AD OU to which you have write access.
 
-msktutil should generate this output:
+    net ads join createcomputer="SciComp/Computers/Servers" osName="$(lsb_release -cs)" osVer="$(lsb_release -rs)" osServicePack="$(lsb_release -ds)" -k --no-dns-updates
 
-    No computer account for yourhostname found, creating a new one.
-    Modified trust account password in secrets database
 
 restart Samba and check log output to verify that samba is up and running:
 
-    systemctl restart smbd nmbd
+    systemctl restart smbd
     tail /var/log/samba/log.smbd
 
 you should see something like this, otherwise continue with troubleshooting
@@ -133,7 +129,11 @@ up. These error messages can indicate these timing issues:
 
 In some cases you cannot join the domain, there are several options. As a first
 step make sure that you read the **prerequisites** at the beginning of this document.
-Then check your local Kerberos keytab using the klist command, it should look
+Then you should see if you can join the domain after you pre-created a computer account 
+in Active Directory Users and Computers (ADUC).
+
+
+IF that does not work check your local Kerberos keytab using the klist command, it should look
 like this:
 
     root@samba4:~# klist -kte
@@ -149,6 +149,14 @@ like this:
 The next troubleshooting step should be changing `log level = 2` to `log level = 4`
 in `/etc/samba/smb.conf` and restarting samba (`systemctl restart smbd nmbd`)
 
+
+### net ads keytab 
+
+use the net ads keytab command to list, create & remove the kerberos keytab 
+
+    net ads keytab add -k
+
+
 ### upgrading Samba
 
 if you feel adventurous you can upgrade to the latest samba release
@@ -157,9 +165,30 @@ if you feel adventurous you can upgrade to the latest samba release
     apt upgrade
     apt install -y samba
 
-### msktutil
+Note: The linux schools samba version does currently not work with clustered samba (ctdb)
 
-msktutil is the most reliable option for joining computers to an AD domain.
+
+### alternative methods
+
+if 'net ads join' does not work in your environment you can try other tools
+that can also create keytabs:
+
+#### msktutil 
+
+Please note the option --base. This is the AD organizational unit (OU) the computer account 
+will be created in. By default this is cn=Computers but if you have a computer OU in your 
+department you would use --base "ou=Computers,ou=Department"
+
+    msktutil --create --service host/$(hostname -s) --service host/$(hostname -f) --set-samba-secret --enctypes 0x4 --dont-expire-password --description "Samba Server by msktutil" --base "cn=Computers"
+
+msktutil should generate this output:
+
+    No computer account for yourhostname found, creating a new one.
+    Modified trust account password in secrets database
+
+Mote: msktutil 1.1 does currenty not work with Ubuntu 18.04 (Sept 2019)
+
+msktutil is one of the most reliable option for joining computers to an AD domain.
 Problems can arise if the join is not successful right away. When you try one
 of these options please make sure that you always delete the local kerberos keytab
 before re-running msktutil (`rm /etc/krb5.keytab`)
@@ -183,20 +212,6 @@ qualified domain name. Please fix /etc/hosts
     Error: Another computer account (CN=samba5,OU=Computers,OU=Dept,DC=mydom,DC=org) has the principal host/samba5
     Error: ldap_add_principal failed
 
-### alternative methods
-
-if msktutil does not work in your environment fall back to traditional tools
-that can also create keytabs:
-
-#### net ads
-
-net ads is the standard tool that comes with Samba. Use the -k option to create
-the computer account via kerberos authentication and the createcomputer option
-to create it in a OU to which you have write access to.
-
-    net ads join createcomputer='Department/Computers' -k
-    net ads keytab add -k
-
 #### samba-tool
 
 samba-tool is a newer tool that works sometimes if `net ads` fails
@@ -214,3 +229,26 @@ tool called **Active Directory Users and Computers**.
 ![Active Directory Users and Computers](assets/markdown-img-paste-20171226134251669.png)
 
 After creating the computer account, try joining again.
+
+
+#### can join but not access Samba shares 
+
+many problems can be resolved by resetting the samba and kerberos configuration:
+
+    net ads leave -k
+    rm /etc/krb5.keytab 
+    systemctl stop smbd nmbd
+    kdestroy
+    rm -rf /var/lib/samba
+    mkdir -p /var/lib/samba/private
+    
+
+then recover:
+
+    systemctl restart smbd nmbd
+    kinit <username>
+    net ads join createcomputer="SciComp/Computers" osName="$(lsb_release -cs)" osVer="$(lsb_release -rs)" osServicePack="$(lsb_release -ds)" -k --no-dns-updates
+    systemctl restart smbd nmbd
+    tail /var/log/samba/log.smbd
+
+
